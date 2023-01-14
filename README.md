@@ -103,6 +103,6 @@ The build number generator is global, there's no concept of special build number
 
 ## Credit
 
-This Github Action is based on original work done by Einar Egilsson. You can read more about the original version on his blog:
+This Github Action is based on original work done by Einar Egilsson, which is no longer maintained. You can read more about the original version on his blog:
 
  http://einaregilsson.com/a-github-action-for-generating-sequential-build-numbers/
