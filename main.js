@@ -71,7 +71,7 @@ function main() {
         console.log(`Build number already generated in earlier jobs, using build number ${buildNumber}...`);
         //Setting the output and a environment variable to new build number...
         fs.writeFileSync(process.env.GITHUB_OUTPUT, `BUILD_NUMBER=${buildNumber}`);
-        console.log(`::set-output name=build_number::${buildNumber}`);
+        console.log(`'build_number=${buildNumber}' >> $GITHUB_OUTPUT`);
         return;
     }
     
@@ -129,10 +129,9 @@ function main() {
             console.log(`Successfully updated build number to ${nextBuildNumber}`);
             
             //Setting the output and a environment variable to new build number...
-            //fs.writeFileSync('$GITHUB_ENV', `BUILD_NUMBER=${nextBuildNumber}`);
             fs.writeFileSync(process.env.GITHUB_OUTPUT, `BUILD_NUMBER=${nextBuildNumber}`);
  
-            console.log(`::set-output name=build_number::${nextBuildNumber}`);
+            console.log(`'build_number=${nextBuildNumber}' >> $GITHUB_OUTPUT`);
             //Save to file so it can be used for next jobs...
             fs.writeFileSync('BUILD_NUMBER', nextBuildNumber.toString());
             
