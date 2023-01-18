@@ -1,0 +1,23 @@
+##
+# Test the action itself
+##
+name: Test
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feature/**
+
+jobs:
+  # test action on Ubuntu
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Test generating build number on Ubuntu
+      uses: ./
+      with:
+        token: ${{ secrets.github_token }}
+        prefix: test
+    - run: echo "Build number is $BUILD_NUMBER"
