@@ -11,7 +11,7 @@ on:
 
 jobs:
   # test action on Ubuntu
-  test:
+  test-ubuntu:
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
@@ -19,10 +19,24 @@ jobs:
     - name: Test generating build number on Ubuntu
       uses: ./
       with:
-        token: ${{ secrets.github_token }}
+        token: ${{ secrets.GITHUB_TOKEN }}
         prefix: test
     - run: |
         if [[ -z "${BUILD_NUMBER}" ]]; then
           echo >&2 "BUILD_NUMBER environment variable is undefined!"
           exit 1
         fi
+
+  # test action on Ubuntu
+  test-windows:
+    runs-on: windows-latest
+    permissions: write-all
+    steps:
+    - uses: actions/checkout@v3
+    - name: Test generating build number on Windows
+      uses: ./
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        prefix: test
+    - name: Print new build number
+      run: echo "Build number is $env:BUILD_NUMBER"
