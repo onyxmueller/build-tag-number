@@ -13,6 +13,7 @@ jobs:
   # test action on Ubuntu
   test:
     runs-on: ubuntu-latest
+    permissions: write-all
     steps:
     - uses: actions/checkout@v3
     - name: Test generating build number on Ubuntu
