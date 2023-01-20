@@ -40,6 +40,6 @@ jobs:
         prefix: test
     - run: |
         if (-not (Test-Path env:BUILD_NUMBER)) {
-          echo >&2 "BUILD_NUMBER environment variable is undefined!"
+          Write-Error "BUILD_NUMBER environment variable is undefined!"
           exit 1
         }
