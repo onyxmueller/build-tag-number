@@ -21,4 +21,8 @@ jobs:
       with:
         token: ${{ secrets.github_token }}
         prefix: test
-    - run: echo "Build number is $BUILD_NUMBER"
+    - run: |
+        if [[ -z "${BUILD_NUMBER}" ]]; then
+          echo >&2 "BUILD_NUMBER environment variable is undefined!"
+          exit 1
+        fi
