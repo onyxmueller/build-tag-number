@@ -50,7 +50,7 @@ jobs:
     steps:
     - name: Generate build number
       id: buildnumber
-      uses: onyxmueller/build-number@v1
+      uses: onyxmueller/build-tag-number@v1
       with:
         token: ${{secrets.github_token}}
           
@@ -87,7 +87,7 @@ jobs:
     steps:
     - name: Generate build number
       id: buildnumber
-      uses: onyxmueller/build-number@v1
+      uses: onyxmueller/build-tag-number@v1
       with:
         token: ${{ secrets.github_token }}
         prefix: client
