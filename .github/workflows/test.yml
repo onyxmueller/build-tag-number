@@ -8,6 +8,7 @@ on:
     branches:
       - main
       - feature/**
+  workflow_dispatch:
 
 jobs:
   # test action on Ubuntu
