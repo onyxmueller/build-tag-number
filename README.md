@@ -104,6 +104,9 @@ If you then do the same in another workflow and use `prefix: server` then you'll
 
 The build number generator is global, there's no concept of special build numbers for special branches unless handled manually with the `prefix` property. It's probably something you would just use on builds from your master branch. It's just one number that gets increased every time the action is run.
 
+## Find this library useful? :raised_hands:
+Support it by joining __[stargazers](https://github.com/onyxmueller/pinata-android/stargazers)__ for this repository. :star: And __[follow me](https://github.com/onyxmueller)__ for other creations.
+
 ## Credit
 
 This Github Action is based on original work done by Einar Egilsson, which is no longer maintained. You can read more about the original version on his blog:
