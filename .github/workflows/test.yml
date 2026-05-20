@@ -21,38 +21,87 @@ jobs:
     - name: Run Node unit tests
       run: node --test
 
-  # test action on Ubuntu
-  test-ubuntu:
-    runs-on: ubuntu-latest
-    permissions: write-all
+  # End-to-end "dogfood" test: actually exercises the action against this
+  # repo's git refs. Each matrix entry uses a unique TAG_PREFIX derived from
+  # github.run_id + run_attempt so concurrent CI runs never collide, and a
+  # final always-on cleanup step deletes every tag created by the run.
+  integration:
+    name: integration (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  name: ubuntu,    delete_previous_tag: true  }
+          - { os: windows-latest, name: windows,   delete_previous_tag: true  }
+          - { os: ubuntu-latest,  name: no-delete, delete_previous_tag: false }
+    env:
+      TAG_PREFIX: ci-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    defaults:
+      run:
+        shell: bash
     steps:
     - uses: actions/checkout@v6
-    - name: Test generating build number on Ubuntu
+
+    - name: First invocation
+      id: first
       uses: ./
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        prefix: test
-        delete_previous_tag: false
-    - run: |
-        if [[ -z "${BUILD_NUMBER}" ]]; then
-          echo >&2 "BUILD_NUMBER environment variable is undefined!"
+        prefix: ${{ env.TAG_PREFIX }}
+        delete_previous_tag: ${{ matrix.delete_previous_tag }}
+
+    - name: Assert first invocation produced build_number=1 and created the tag
+      run: |
+        if [[ "${{ steps.first.outputs.build_number }}" != "1" ]]; then
+          echo "::error::Expected build_number=1, got '${{ steps.first.outputs.build_number }}'"
+          exit 1
+        fi
+        if ! gh api "repos/${{ github.repository }}/git/refs/tags/${TAG_PREFIX}-build-number-1" > /dev/null 2>&1; then
+          echo "::error::Tag ${TAG_PREFIX}-build-number-1 was not created"
           exit 1
         fi
 
-  # test action on Ubuntu
-  test-windows:
-    runs-on: windows-latest
-    permissions: write-all
-    steps:
-    - uses: actions/checkout@v6
-    - name: Test generating build number on Windows
+    - name: Second invocation
+      id: second
       uses: ./
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        prefix: test
-        delete_previous_tag: false
-    - run: |
-        if (-not (Test-Path env:BUILD_NUMBER)) {
-          Write-Error "BUILD_NUMBER environment variable is undefined!"
+        prefix: ${{ env.TAG_PREFIX }}
+        delete_previous_tag: ${{ matrix.delete_previous_tag }}
+
+    - name: Assert second invocation incremented and respected delete_previous_tag
+      run: |
+        if [[ "${{ steps.second.outputs.build_number }}" != "2" ]]; then
+          echo "::error::Expected build_number=2, got '${{ steps.second.outputs.build_number }}'"
           exit 1
-        }
+        fi
+        # Brief pause for ref deletions to propagate through GitHub's API
+        sleep 2
+        if gh api "repos/${{ github.repository }}/git/refs/tags/${TAG_PREFIX}-build-number-1" > /dev/null 2>&1; then
+          first_tag_exists=true
+        else
+          first_tag_exists=false
+        fi
+        if [[ "${{ matrix.delete_previous_tag }}" == "true" && "$first_tag_exists" == "true" ]]; then
+          echo "::error::Tag ${TAG_PREFIX}-build-number-1 should have been deleted but still exists"
+          exit 1
+        fi
+        if [[ "${{ matrix.delete_previous_tag }}" == "false" && "$first_tag_exists" == "false" ]]; then
+          echo "::error::Tag ${TAG_PREFIX}-build-number-1 should still exist with delete_previous_tag=false"
+          exit 1
+        fi
+
+    - name: Cleanup tags created by this run
+      if: always()
+      run: |
+        # matching-refs returns refs whose names start with the given prefix
+        gh api "repos/${{ github.repository }}/git/matching-refs/tags/${TAG_PREFIX}-build-number-" \
+          --jq '.[].ref' \
+          | while read -r ref; do
+              echo "Deleting $ref"
+              gh api -X DELETE "repos/${{ github.repository }}/git/${ref}" || true
+            done
