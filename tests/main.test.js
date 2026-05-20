@@ -76,3 +76,14 @@ test('too many tags with delete_previous_tag=true fails with exit 1', async () =
     const posts = r.http_calls.filter((c) => c.method === 'POST');
     assert.equal(posts.length, 0, 'should bail before creating a new ref');
 });
+
+// When the user has explicitly set delete_previous_tag=false, build-number
+// refs are expected to accumulate beyond the safety threshold of 5. The
+// action must not treat that as an error. Fix: PR #21.
+test('too many tags with delete_previous_tag=false does NOT fail', async () => {
+    const r = await runAction({ tags: 6, inputs: { delete_previous_tag: false } });
+    assert.equal(r.exit_code, null, 'action should not fail when user opted out of deletion');
+    assert.equal(r.build_number, 7);
+    const deletes = r.http_calls.filter((c) => c.method === 'DELETE');
+    assert.equal(deletes.length, 0, 'no refs should be deleted');
+});
