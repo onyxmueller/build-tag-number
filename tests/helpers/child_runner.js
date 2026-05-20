@@ -111,8 +111,11 @@ const baseEnv = {
     GITHUB_OUTPUT: '/tmp/gh_output_stub',
     GITHUB_ENV: '/tmp/gh_env_stub',
 };
+// GitHub Actions runners pre-populate GITHUB_OUTPUT, GITHUB_ENV,
+// GITHUB_REPOSITORY, and GITHUB_SHA — force-overwrite so the action writes
+// to our stub paths instead of the runner's real ones.
 for (const k of Object.keys(baseEnv)) {
-    if (process.env[k] === undefined) process.env[k] = baseEnv[k];
+    process.env[k] = baseEnv[k];
 }
 for (const [k, v] of Object.entries(env)) {
     if (v === null) delete process.env[k];
