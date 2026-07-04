@@ -27,6 +27,20 @@ test('existing tags with default delete behavior: increments and deletes old ref
     assert.equal(deletes.length, 3);
 });
 
+test('add annotated tags with default delete behavior: increments and deletes old refs', async () => {
+    const r = await runAction({ tags: 3, inputs: { annotated_tag: true }  });
+    assert.equal(r.exit_code, null);
+    assert.equal(r.build_number, 4);
+    const posts = r.http_calls.filter((c) => c.method === 'POST');
+    assert.equal(posts.length, 2);
+    assert.ok(posts[0].path.includes('/git/tags'));
+    assert.ok(posts[0].body.includes('"message":"Build number 4"'));
+    assert.ok(posts[1].path.includes('/git/refs'));
+    assert.ok(posts[1].body.includes('refs/tags/build-number-4'));
+    const deletes = r.http_calls.filter((c) => c.method === 'DELETE');
+    assert.equal(deletes.length, 3);
+});
+
 test('delete_previous_tag=false: increments without deleting old refs', async () => {
     const r = await runAction({ tags: 3, inputs: { delete_previous_tag: false } });
     assert.equal(r.exit_code, null);

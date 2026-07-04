@@ -12,7 +12,7 @@ jobs:
     - name: Generate build number
       uses: onyxmueller/build-tag-number@v1
       with:
-        token: ${{secrets.github_token}}        
+        token: ${{secrets.github_token}}
     - name: Print new build number
       run: echo "Build number is $BUILD_NUMBER"
       # Or, if you're on Windows: echo "Build number is ${env:BUILD_NUMBER}"
@@ -29,8 +29,8 @@ jobs:
       id: buildnumber
       uses: onyxmueller/build-tag-number@v1
       with:
-        token: ${{secrets.github_token}}        
-    
+        token: ${{secrets.github_token}}
+
     # Now you can pass ${{ steps.buildnumber.outputs.build_number }} to the next steps.
     - name: Another step as an example
       uses: actions/hello-world-docker-action@v1
@@ -56,7 +56,7 @@ jobs:
       uses: onyxmueller/build-tag-number@v1
       with:
         token: ${{secrets.github_token}}
-          
+
   job2:
     needs: job1
     runs-on: ubuntu-latest
@@ -80,7 +80,7 @@ and then your next build number will be 501. The action will always delete older
 
 ## Generating multiple independent build numbers
 
-Sometimes you may have more than one project to build in one repository. For example, you may have a client and a server in the same GitHub repository that you would like to generate independent build numbers for. Another example is you have two Dockerfiles in one repo and you'd like to version each of the built images with their own numbers.  
+Sometimes you may have more than one project to build in one repository. For example, you may have a client and a server in the same GitHub repository that you would like to generate independent build numbers for. Another example is you have two Dockerfiles in one repo and you'd like to version each of the built images with their own numbers.
 To do this, use the `prefix` key, like so:
 
 ```yaml
@@ -111,9 +111,31 @@ jobs:
     - name: Generate build number
       uses: onyxmueller/build-tag-number@v1
       with:
-        token: ${{secrets.github_token}}        
+        token: ${{secrets.github_token}}
         delete_previous_tag: false
 ```
+
+### Optional: Use *annotated* tags
+By default, the action uses *lightweight* tags. See [Git Basics - Tagging](https://git-scm.com/book/en/v2/Git-Basics-Tagging) for usages and the difference between
+*lightweight* and *annotated* tags. To use *annotated* tags, set `annotated_tag: true`:
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Generate build number
+      uses: onyxmueller/build-tag-number@v1
+      with:
+        token: ${{secrets.github_token}}
+        annotated_tag: true
+```
+
+If desired, this option can be combined with `delete_previous_tag: false`. Note if you get a `Status: 403` error when using *annotated* tags, that likely means
+your project doesn't have the appropriate permissions to create the tag (annotated tags require write permission). One way to resolve this is by adding the
+`write` permission to your YAML file, as shown in the example above.
 
 ## Branches and build numbers
 
