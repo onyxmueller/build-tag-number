@@ -1,0 +1,120 @@
+# Integration tests for pull requests from forks.
+#
+# Fork PRs triggered via `pull_request` receive a read-only GITHUB_TOKEN,
+# so integration tests that create tag refs fail with 403. This workflow
+# uses `pull_request_target` (which runs with a write-capable token) but
+# is gated behind the `safe-to-test` label, which a maintainer applies
+# only AFTER reviewing the PR diff.
+#
+# Security model:
+#   - Runs only when the `safe-to-test` label is applied (types: [labeled]).
+#   - A companion workflow removes the label whenever new commits are
+#     pushed, so re-review is required before tests run again.
+#   - Job permissions are scoped to `contents: write` only.
+#   - The PR head is checked out explicitly and pinned to the labeled SHA.
+name: Integration (fork PRs)
+
+on:
+  pull_request_target:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: integration-fork-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    if: github.event.label.name == 'safe-to-test'
+    name: integration (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - { os: ubuntu-latest,  name: ubuntu,    delete_previous_tag: true  }
+          - { os: windows-latest, name: windows,   delete_previous_tag: true  }
+          - { os: ubuntu-latest,  name: no-delete, delete_previous_tag: false }
+    env:
+      TAG_PREFIX: ci-fork-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - name: Checkout PR head
+      uses: actions/checkout@v6
+      with:
+        # Pin to the exact SHA that carried the label. Do NOT check out
+        # a mutable ref here; the PR branch could be force-pushed after
+        # the label is applied.
+        ref: ${{ github.event.pull_request.head.sha }}
+        persist-credentials: false
+
+    - name: First invocation
+      id: first
+      uses: ./
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        prefix: ${{ env.TAG_PREFIX }}
+        delete_previous_tag: ${{ matrix.delete_previous_tag }}
+
+    - name: Assert first invocation produced build_number=1 and created the tag
+      run: |
+        if [[ "${{ steps.first.outputs.build_number }}" != "1" ]]; then
+          echo "::error::Expected build_number=1, got '${{ steps.first.outputs.build_number }}'"
+          exit 1
+        fi
+        if [[ "$BUILD_NUMBER" != "${{ steps.first.outputs.build_number }}" ]]; then
+          echo "::error::BUILD_NUMBER env var does not match step output"
+          exit 1
+        fi
+        if ! gh api "repos/${{ github.repository }}/git/refs/tags/${TAG_PREFIX}-build-number-1" > /dev/null 2>&1; then
+          echo "::error::Tag ${TAG_PREFIX}-build-number-1 was not created"
+          exit 1
+        fi
+
+    - name: Second invocation
+      id: second
+      uses: ./
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        prefix: ${{ env.TAG_PREFIX }}
+        delete_previous_tag: ${{ matrix.delete_previous_tag }}
+
+    - name: Assert second invocation incremented and respected delete_previous_tag
+      run: |
+        if [[ "${{ steps.second.outputs.build_number }}" != "2" ]]; then
+          echo "::error::Expected build_number=2, got '${{ steps.second.outputs.build_number }}'"
+          exit 1
+        fi
+        # Brief pause for ref deletions to propagate through GitHub's API
+        sleep 2
+        if gh api "repos/${{ github.repository }}/git/refs/tags/${TAG_PREFIX}-build-number-1" > /dev/null 2>&1; then
+          first_tag_exists=true
+        else
+          first_tag_exists=false
+        fi
+        if [[ "${{ matrix.delete_previous_tag }}" == "true" && "$first_tag_exists" == "true" ]]; then
+          echo "::error::Tag ${TAG_PREFIX}-build-number-1 should have been deleted but still exists"
+          exit 1
+        fi
+        if [[ "${{ matrix.delete_previous_tag }}" == "false" && "$first_tag_exists" == "false" ]]; then
+          echo "::error::Tag ${TAG_PREFIX}-build-number-1 should still exist with delete_previous_tag=false"
+          exit 1
+        fi
+
+    - name: Cleanup tags created by this run
+      if: always()
+      run: |
+        # matching-refs returns refs whose names start with the given prefix
+        gh api "repos/${{ github.repository }}/git/matching-refs/tags/${TAG_PREFIX}-build-number-" \
+          --jq '.[].ref' \
+          | while read -r ref; do
+              echo "Deleting $ref"
+              gh api -X DELETE "repos/${{ github.repository }}/git/${ref}" || true
+            done
