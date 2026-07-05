@@ -26,6 +26,12 @@ jobs:
   # github.run_id + run_attempt so concurrent CI runs never collide, and a
   # final always-on cleanup step deletes every tag created by the run.
   integration:
+    # Fork PRs get a read-only GITHUB_TOKEN, so this job would always fail
+    # with 403. Fork PRs are covered by the label-gated integration-fork
+    # workflow instead.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     name: integration (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     permissions:
