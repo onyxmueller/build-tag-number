@@ -1,56 +1,59 @@
-##
-# Test the action itself
-##
-name: Test
+# Integration tests for pull requests from forks.
+#
+# Fork PRs triggered via `pull_request` receive a read-only GITHUB_TOKEN,
+# so integration tests that create tag refs fail with 403. This workflow
+# uses `pull_request_target` (which runs with a write-capable token) but
+# is gated behind the `safe-to-test` label, which a maintainer applies
+# only AFTER reviewing the PR diff.
+#
+# Security model:
+#   - Runs only when the `safe-to-test` label is applied (types: [labeled]).
+#   - A companion workflow removes the label whenever new commits are
+#     pushed, so re-review is required before tests run again.
+#   - Job permissions are scoped to `contents: write` only.
+#   - The PR head is checked out explicitly and pinned to the labeled SHA.
+name: Integration (fork PRs)
+
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - feature/**
-  workflow_dispatch:
+  pull_request_target:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: integration-fork-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
-  unit-tests:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v6
-    - uses: actions/setup-node@v4
-      with:
-        node-version: '24'
-    - name: Run Node unit tests
-      run: node --test
-
-  # End-to-end "dogfood" test: actually exercises the action against this
-  # repo's git refs. Each matrix entry uses a unique TAG_PREFIX derived from
-  # github.run_id + run_attempt so concurrent CI runs never collide, and a
-  # final always-on cleanup step deletes every tag created by the run.
   integration:
-    # Fork PRs get a read-only GITHUB_TOKEN, so this job would always fail
-    # with 403. Fork PRs are covered by the label-gated integration-fork
-    # workflow instead.
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.label.name == 'safe-to-test'
     name: integration (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - { os: ubuntu-latest,  name: ubuntu,    delete_previous_tag: true  }
           - { os: windows-latest, name: windows,   delete_previous_tag: true  }
           - { os: ubuntu-latest,  name: no-delete, delete_previous_tag: false }
     env:
-      TAG_PREFIX: ci-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+      TAG_PREFIX: ci-fork-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     defaults:
       run:
         shell: bash
     steps:
-    - uses: actions/checkout@v6
+    - name: Checkout PR head
+      uses: actions/checkout@v6
+      with:
+        # Pin to the exact SHA that carried the label. Do NOT check out
+        # a mutable ref here; the PR branch could be force-pushed after
+        # the label is applied.
+        ref: ${{ github.event.pull_request.head.sha }}
+        persist-credentials: false
 
     - name: First invocation
       id: first
@@ -64,6 +67,10 @@ jobs:
       run: |
         if [[ "${{ steps.first.outputs.build_number }}" != "1" ]]; then
           echo "::error::Expected build_number=1, got '${{ steps.first.outputs.build_number }}'"
+          exit 1
+        fi
+        if [[ "$BUILD_NUMBER" != "${{ steps.first.outputs.build_number }}" ]]; then
+          echo "::error::BUILD_NUMBER env var does not match step output"
           exit 1
         fi
         if ! gh api "repos/${{ github.repository }}/git/refs/tags/${TAG_PREFIX}-build-number-1" > /dev/null 2>&1; then

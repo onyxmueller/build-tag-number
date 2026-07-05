@@ -1,0 +1,39 @@
+# Removes the `safe-to-test` label whenever a PR receives new commits.
+#
+# This closes the approve-then-swap loophole: a contributor cannot get
+# the label applied to a reviewed commit and then push malicious code
+# that runs with a write token. Every new push requires a maintainer to
+# re-review and re-apply the label.
+#
+# NOTE: This workflow runs the base branch's code only (no PR checkout),
+# so it is safe under pull_request_target.
+name: Remove safe-to-test label
+
+on:
+  pull_request_target:
+    types: [synchronize]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  remove-label:
+    if: contains(github.event.pull_request.labels.*.name, 'safe-to-test')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              name: 'safe-to-test'
+            });
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: 'New commits were pushed, so the `safe-to-test` label was removed. A maintainer needs to re-review the changes and re-apply the label to run integration tests.'
+            });
