@@ -60,6 +60,35 @@ function request(method, path, data, callback) {
 }
 
 
+function saveBuildNumber(nextBuildNumber, nrTags, deletePreviousTag) {
+    console.log(`Successfully updated build number to ${nextBuildNumber}`);
+
+    //Setting the output and a environment variable to new build number...
+    fs.writeFileSync(process.env.GITHUB_OUTPUT, `build_number=${nextBuildNumber}`);
+    fs.writeFileSync(process.env.GITHUB_ENV, `BUILD_NUMBER=${nextBuildNumber}`);
+
+    //Save to file so it can be used for next jobs...
+    fs.writeFileSync('BUILD_NUMBER', nextBuildNumber.toString());
+
+    //Cleanup
+    if (nrTags && deletePreviousTag) {
+        console.log(`Deleting ${nrTags.length} older build counters...`);
+
+        for (let nrTag of nrTags) {
+            request('DELETE', `/repos/${env.GITHUB_REPOSITORY}/git/${nrTag.ref}`, null, (err, status, result) => {
+                if (status !== 204 || err) {
+                    console.warn(`Failed to delete ref ${nrTag.ref}, status: ${status}, err: ${err}, result: ${JSON.stringify(result)}`);
+                } else {
+                    console.log(`Deleted ${nrTag.ref}`);
+                }
+            });
+        }
+    } else if (nrTags && !deletePreviousTag) {
+        console.log('Skipping deletion of previous build-number tags as requested.');
+    }
+}
+
+
 function main() {
 
     const path = 'BUILD_NUMBER/BUILD_NUMBER';
@@ -151,6 +180,7 @@ function main() {
                         return;
                     }
 
+                    saveBuildNumber(nextBuildNumber, nrTags, deletePreviousTag);
                 });
             });
         } else {
@@ -163,33 +193,9 @@ function main() {
                 if (status !== 201 || err) {
                     fail(`Failed to create new build-number ref. Status: ${status}, err: ${err}, result: ${JSON.stringify(result)}`);
                 }
+
+                saveBuildNumber(nextBuildNumber, nrTags, deletePreviousTag);
             });
-        }
-
-        console.log(`Successfully updated build number to ${nextBuildNumber}`);
-
-        //Setting the output and a environment variable to new build number...
-        fs.writeFileSync(process.env.GITHUB_OUTPUT, `build_number=${nextBuildNumber}`);
-        fs.writeFileSync(process.env.GITHUB_ENV, `BUILD_NUMBER=${nextBuildNumber}`);
-
-        //Save to file so it can be used for next jobs...
-        fs.writeFileSync('BUILD_NUMBER', nextBuildNumber.toString());
-
-        //Cleanup
-        if (nrTags && deletePreviousTag) {
-            console.log(`Deleting ${nrTags.length} older build counters...`);
-
-            for (let nrTag of nrTags) {
-                request('DELETE', `/repos/${env.GITHUB_REPOSITORY}/git/${nrTag.ref}`, null, (err, status, result) => {
-                    if (status !== 204 || err) {
-                        console.warn(`Failed to delete ref ${nrTag.ref}, status: ${status}, err: ${err}, result: ${JSON.stringify(result)}`);
-                    } else {
-                        console.log(`Deleted ${nrTag.ref}`);
-                    }
-                });
-            }
-        } else if (nrTags && !deletePreviousTag) {
-            console.log('Skipping deletion of previous build-number tags as requested.');
         }
     });
 }
