@@ -14,6 +14,9 @@ inputs:
   delete_previous_tag:
     description: 'If set to false, previous build number tags will not be deleted (default: true)'
     required: false
+  annotated_tag:
+    description: 'If set to true, use an annotated tag rather than a lightweight tag (default: false)'
+    required: false
 
 outputs:
   build_number:

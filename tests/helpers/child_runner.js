@@ -126,6 +126,9 @@ if (inputs.prefix !== undefined) process.env.INPUT_PREFIX = inputs.prefix;
 if (inputs.delete_previous_tag !== undefined) {
     process.env.INPUT_DELETE_PREVIOUS_TAG = String(inputs.delete_previous_tag);
 }
+if (inputs.annotated_tag !== undefined) {
+    process.env.INPUT_ANNOTATED_TAG = String(inputs.annotated_tag);
+}
 
 try {
     require(actionMain);
