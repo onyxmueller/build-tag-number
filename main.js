@@ -9,16 +9,36 @@ function fail(message, exitCode=1) {
     process.exit(1);
 }
 
+//GitHub Enterprise Server support: the runner sets GITHUB_API_URL to
+//e.g. https://github.example.com/api/v3 (or https://api.github.com on
+//github.com). Fall back to api.github.com when it's not set.
+function apiBase() {
+    try {
+        const url = new URL(env.GITHUB_API_URL || 'https://api.github.com');
+        if (url.protocol !== 'https:') {
+            fail(`ERROR: GITHUB_API_URL must use https, got '${env.GITHUB_API_URL}'.`);
+        }
+        return {
+            hostname: url.hostname,
+            port: url.port || 443,
+            basePath: url.pathname.replace(/\/$/, '')
+        };
+    } catch (err) {
+        fail(`ERROR: Could not parse GITHUB_API_URL '${env.GITHUB_API_URL}': ${err.message}`);
+    }
+}
+
 function request(method, path, data, callback) {
 
     try {
         if (data) {
             data = JSON.stringify(data);
         }
+        const api = apiBase();
         const options = {
-            hostname: 'api.github.com',
-            port: 443,
-            path,
+            hostname: api.hostname,
+            port: api.port,
+            path: `${api.basePath}${path}`,
             method,
             headers: {
                 'Content-Type': 'application/json',

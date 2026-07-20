@@ -49,7 +49,7 @@ const stubHttps = {
     request(options, callback) {
         const method = options.method;
         const reqPath = options.path;
-        const call = { method, path: reqPath };
+        const call = { method, path: reqPath, hostname: options.hostname, port: options.port };
         httpCalls.push(call);
         process.nextTick(() => {
             let status;
@@ -117,6 +117,9 @@ const baseEnv = {
 for (const k of Object.keys(baseEnv)) {
     process.env[k] = baseEnv[k];
 }
+// GitHub-hosted runners also pre-populate GITHUB_API_URL — remove it so tests
+// exercise the api.github.com fallback unless a test sets it explicitly.
+delete process.env.GITHUB_API_URL;
 for (const [k, v] of Object.entries(env)) {
     if (v === null) delete process.env[k];
     else process.env[k] = v;

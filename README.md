@@ -137,6 +137,10 @@ If desired, this option can be combined with `delete_previous_tag: false`. Note 
 your project doesn't have the appropriate permissions to create the tag (annotated tags require write permission). One way to resolve this is by adding the
 `write` permission to your YAML file, as shown in the example above.
 
+## GitHub Enterprise Server
+
+The action works on GitHub Enterprise Server out of the box. It uses the `GITHUB_API_URL` environment variable that every runner provides (e.g. `https://github.example.com/api/v3` on GHES, `https://api.github.com` on github.com) to reach the right API endpoint, so no extra configuration is needed.
+
 ## Branches and build numbers
 
 The build number generator is global, there's no concept of special build numbers for special branches unless handled manually with the `prefix` property. It's probably something you would just use on builds from your master branch. It's just one number that gets increased every time the action is run.
