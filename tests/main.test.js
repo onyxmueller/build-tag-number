@@ -91,6 +91,48 @@ test('too many tags with delete_previous_tag=true fails with exit 1', async () =
     assert.equal(posts.length, 0, 'should bail before creating a new ref');
 });
 
+test('default API host: all requests target api.github.com with no path prefix', async () => {
+    const r = await runAction({ tags: 2 });
+    assert.equal(r.exit_code, null);
+    assert.ok(r.http_calls.length > 0);
+    for (const c of r.http_calls) {
+        assert.equal(c.hostname, 'api.github.com');
+        assert.ok(c.path.startsWith('/repos/'), `unexpected path: ${c.path}`);
+    }
+});
+
+// GitHub Enterprise Server: the runner sets GITHUB_API_URL to
+// https://<host>/api/v3 — the action must target that host and prefix
+// every request path with /api/v3.
+test('GITHUB_API_URL (GHES): requests target the enterprise host with /api/v3 prefix', async () => {
+    const r = await runAction({
+        tags: 2,
+        env: { GITHUB_API_URL: 'https://github.example.com/api/v3' },
+    });
+    assert.equal(r.exit_code, null);
+    assert.equal(r.build_number, 3);
+    assert.ok(r.http_calls.length > 0);
+    for (const c of r.http_calls) {
+        assert.equal(c.hostname, 'github.example.com');
+        assert.ok(c.path.startsWith('/api/v3/repos/'), `unexpected path: ${c.path}`);
+    }
+    const deletes = r.http_calls.filter((c) => c.method === 'DELETE');
+    assert.equal(deletes.length, 2);
+});
+
+test('GITHUB_API_URL with explicit port and trailing slash is honored', async () => {
+    const r = await runAction({
+        refsStatus: 404,
+        env: { GITHUB_API_URL: 'https://github.example.com:8443/api/v3/' },
+    });
+    assert.equal(r.exit_code, null);
+    const get = r.http_calls.find((c) => c.method === 'GET');
+    assert.equal(get.hostname, 'github.example.com');
+    assert.equal(String(get.port), '8443');
+    assert.ok(get.path.startsWith('/api/v3/repos/'), `unexpected path: ${get.path}`);
+    assert.ok(!get.path.includes('//'), `double slash in path: ${get.path}`);
+});
+
 // When the user has explicitly set delete_previous_tag=false, build-number
 // refs are expected to accumulate beyond the safety threshold of 5. The
 // action must not treat that as an error. Fix: PR #21.
